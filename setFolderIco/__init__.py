@@ -6,9 +6,13 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 import shutil
 import subprocess
+import time
+import ctypes
 
 # Set directory as a global variable
 directory = None
+highlighted_icon_canvas = None
+icon_canvases = []  # 存储所有图标的 canvas
 
 def run_cmd(command):
     subprocess.call(command, creationflags=0x08000000)
@@ -28,9 +32,8 @@ def create_window_with_icons(icons):
     root.title("Icon Viewer")  # Set the window title
 
     # Create a Canvas
-    canvas = tk.Canvas(root)
-    canvas.configure(bg='#303841')
-    scrollable_frame = tk.Frame(canvas)
+    canvas = tk.Canvas(root, bg='#303841', bd=0, highlightthickness=0)
+    scrollable_frame = tk.Frame(canvas, bg='#303841')
 
     # Configure the Canvas
     scrollable_frame.bind(
@@ -100,12 +103,16 @@ def openImg(container, tk_images, icon):
             tk_images.append(tk_image)  # 将Tkinter图片对象存储在列表中
 
             # Create a Canvas and draw the image
-            icon_canvas = tk.Canvas(container, width=64, height=64, bg='#303841', bd=0, highlightthickness=0)
+            icon_canvas = tk.Canvas(container, width=64, height=64, bg='#303841', bd=0, highlightthickness=2, highlightbackground='#303841')
             icon_canvas.pack(side=tk.TOP, anchor=tk.NW, padx=0, pady=0)
             icon_canvas.create_image(0, 0, anchor=tk.NW, image=tk_image)
 
-            # Bind click event to the Canvas
-            icon_canvas.bind("<Button-1>", lambda event: on_icon_click(icon))
+            # Store canvas for later use
+            icon_canvases.append(icon_canvas)
+
+            # Bind click and double-click event to the Canvas
+            icon_canvas.bind("<Button-1>", lambda event: on_icon_click(icon, icon_canvas))
+            icon_canvas.bind("<Double-Button-1>", lambda event: on_icon_double_click(icon))
     except Exception as e:
         messagebox.showerror("Error", f"Failed to open image: {e}")
 
@@ -136,7 +143,18 @@ def choose_new_icon():
         except Exception as e:
             messagebox.showerror("Error", f"Failed to copy icon: {e}")
 
-def on_icon_click(icon):
+def on_icon_click(icon, icon_canvas):
+    global highlighted_icon_canvas
+
+    # Remove the highlight from the previously highlighted icon
+    if highlighted_icon_canvas:
+        highlighted_icon_canvas.configure(highlightbackground="#303841")
+
+    # Highlight the currently clicked icon
+    icon_canvas.configure(highlightbackground="white")
+    highlighted_icon_canvas = icon_canvas
+
+def on_icon_double_click(icon):
     # Process icon and update desktop.ini
     process_icon(icon)
 
@@ -177,40 +195,40 @@ def process_icon(icon):
         try:
             with open(ini_path, 'w', encoding='utf-8') as file:
                 file.write(f'[.ShellClassInfo]\nIconResource={relative_icon_path},0\n')
-                run_cmd(f'attrib +h +s "{ini_path}"')  # Set file attributes to hidden and system
-            refresh_explorer()
+                run_cmd(f'attrib +h +s "{ini_path}"')
+                run_cmd(f'attrib +s "{directory}"')
+                refresh_explorer()
         except Exception as e:
             messagebox.showerror("Error", f"Failed to create desktop.ini: {e}")
 
+# 刷新资源管理器
 def refresh_explorer():
-    run_cmd('Rundll32.exe shell32.dll,SHChangeNotify 134217728 0 0 0')
+    # 找到桌面窗口
+    hwnd = ctypes.windll.user32.FindWindowW("Progman", None)
+    ctypes.windll.user32.SendMessageW(hwnd, 0x111, 0xF140, 0)  # 刷新消息
+    time.sleep(1)
+
+# Main application
+def main():
+    global root
+    global directory
+
+    root = tk.Tk()
+    root.withdraw()  # Hide the root window
+
+    # Ask the user to select a directory
+    directory = filedialog.askdirectory(title="Select Directory")
+    if not directory:
+        messagebox.showerror("Error", "No directory selected")
+        return
+
+    # Extract icons from the directory
+    icons = extract_icons(directory)
+
+    if icons:
+        create_window_with_icons(icons)
+    else:
+        messagebox.showinfo("Info", "No icons found in the selected directory")
 
 if __name__ == "__main__":
-    import sys
-    root = tk.Tk()
-    root.withdraw()  # Hide the main window initially
-
-    # Check if a directory path is provided as a command-line argument
-    if len(sys.argv) > 1:
-        directory = sys.argv[1]
-        if not os.path.isdir(directory):
-            print("Provided directory does not exist.")
-            directory = filedialog.askdirectory(title="Select Directory")
-            sys.exit(1)
-    else:
-        directory = filedialog.askdirectory(title="Select Directory")
-        if not directory:
-            print("No directory selected.")
-            sys.exit(1)
-
-    # Set the directory to absolute path
-    directory = os.path.abspath(directory)
-
-    # Grant full control permissions to the current user
-    username = os.getlogin()
-    command = f'icacls "{directory}" /grant {username}:F'
-    run_cmd(command)
-
-    # Extract icons and create the window
-    icons = extract_icons(directory)
-    create_window_with_icons(icons)
+    main()
