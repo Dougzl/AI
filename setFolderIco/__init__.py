@@ -27,13 +27,12 @@ def create_window_with_icons(icons):
     root.geometry("300x400")  # Adjust the size as needed
     root.title("Icon Viewer")  # Set the window title
 
-    # Create a Canvas and a Scrollbar
+    # Create a Canvas
     canvas = tk.Canvas(root)
     canvas.configure(bg='#303841')
-    scrollbar = tk.Scrollbar(root, orient="vertical", command=canvas.yview)
     scrollable_frame = tk.Frame(canvas)
 
-    # Configure the Canvas and the Scrollbar
+    # Configure the Canvas
     scrollable_frame.bind(
         "<Configure>",
         lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
@@ -42,8 +41,6 @@ def create_window_with_icons(icons):
     # Create a window in the Canvas to contain the scrollable_frame
     canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
     canvas.pack(side="left", fill="both", expand=True)
-    scrollbar.pack(side="right", fill="y")
-    canvas.config(yscrollcommand=scrollbar.set)
 
     # Bind mouse wheel event for scrolling
     def on_mouse_wheel(event):
@@ -54,6 +51,10 @@ def create_window_with_icons(icons):
     tk_images = []
     for idx, icon in enumerate(icons):
         openImg(scrollable_frame, tk_images, icon)
+
+        # Add transparent space between icons
+        spacer = tk.Canvas(scrollable_frame, width=64, height=10, bg='#303841', bd=0, highlightthickness=0)
+        spacer.pack(side=tk.TOP, anchor=tk.NW, padx=0, pady=0)
 
     # Ensure scrollregion is updated after all images are added
     canvas.configure(scrollregion=canvas.bbox("all"))
