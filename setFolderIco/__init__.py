@@ -6,8 +6,25 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 import shutil
 import subprocess
-import time
 import ctypes
+from ctypes import wintypes
+
+
+# http://msdn.microsoft.com/en-us/library/ms644950
+SendMessageTimeout = ctypes.windll.user32.SendMessageTimeoutA
+SendMessageTimeout.restype = wintypes.LPARAM  # aka LRESULT
+SendMessageTimeout.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM,
+                               wintypes.UINT, wintypes.UINT, ctypes.c_void_p]
+
+# http://msdn.microsoft.com/en-us/library/bb762118
+SHChangeNotify = ctypes.windll.shell32.SHChangeNotify
+SHChangeNotify.restype = None
+SHChangeNotify.argtypes = [wintypes.LONG, wintypes.UINT, wintypes.LPCVOID, wintypes.LPCVOID]
+
+HWND_BROADCAST     = 0xFFFF
+WM_SETTINGCHANGE   = 0x001A
+SMTO_ABORTIFHUNG   = 0x0002
+SHCNE_ASSOCCHANGED = 0x08000000
 
 # Set directory as a global variable
 directory = None
@@ -203,10 +220,8 @@ def process_icon(icon):
 
 # 刷新资源管理器
 def refresh_explorer():
-    # 找到桌面窗口
-    hwnd = ctypes.windll.user32.FindWindowW("Progman", None)
-    ctypes.windll.user32.SendMessageW(hwnd, 0x111, 0xF140, 0)  # 刷新消息
-    time.sleep(1)
+    SendMessageTimeout(HWND_BROADCAST, WM_SETTINGCHANGE, 0, 0, SMTO_ABORTIFHUNG, 5000, None)
+    SHChangeNotify(SHCNE_ASSOCCHANGED, 0, None, None)
 
 # Main application
 def main():
