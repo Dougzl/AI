@@ -7,7 +7,7 @@ from tkinter import filedialog, messagebox
 import shutil
 import subprocess
 import ctypes
-import glob
+from ctypes import wintypes
 
 # Set directory as a global variable
 directory = None
@@ -201,40 +201,25 @@ def process_icon(icon):
         except Exception as e:
             messagebox.showerror("Error", f"Failed to create desktop.ini: {e}")
 
-def refresh_folder_view():
-    SendMessageTimeoutW = ctypes.windll.user32.SendMessageTimeoutW
-    FindWindowW = ctypes.windll.user32.FindWindowW
+def refresh_explorer():
+    # http://msdn.microsoft.com/en-us/library/ms644950
+    SendMessageTimeout = ctypes.windll.user32.SendMessageTimeoutA
+    SendMessageTimeout.restype = wintypes.LPARAM  # aka LRESULT
+    SendMessageTimeout.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM,
+                                   wintypes.UINT, wintypes.UINT, ctypes.c_void_p]
 
+    # http://msdn.microsoft.com/en-us/library/bb762118
+    SHChangeNotify = ctypes.windll.shell32.SHChangeNotify
+    SHChangeNotify.restype = None
+    SHChangeNotify.argtypes = [wintypes.LONG, wintypes.UINT, wintypes.LPCVOID, wintypes.LPCVOID]
+
+    HWND_BROADCAST = 0xFFFF
     WM_SETTINGCHANGE = 0x001A
     SMTO_ABORTIFHUNG = 0x0002
+    SHCNE_ASSOCCHANGED = 0x08000000
 
-    hwnd = FindWindowW(None, None)
-
-    if hwnd:
-        SendMessageTimeoutW(
-            hwnd,
-            WM_SETTINGCHANGE,
-            0,
-            0,
-            SMTO_ABORTIFHUNG,
-            5000,
-            None
-        )
-
-# 刷新资源管理器
-def refresh_explorer():
-    refresh_folder_view()
-
-    icon_cache = os.path.expandvars("%LOCALAPPDATA%\\IconCache.db")
-    if os.path.exists(icon_cache):
-        os.remove(icon_cache)
-
-    thumbs_cache = os.path.expandvars("%LOCALAPPDATA%\\Microsoft\\Windows\\Explorer\\thumbcache_*.db")
-    for file in glob.glob(thumbs_cache):
-        os.remove(file)
-
-    ctypes.windll.shell32.SHChangeNotify(0x8000000, 0x0000, 0, 0)
-
+    SendMessageTimeout(HWND_BROADCAST, WM_SETTINGCHANGE, 0, 0, SMTO_ABORTIFHUNG, 5000, None)
+    SHChangeNotify(SHCNE_ASSOCCHANGED, 0, None, None)
 
 # Main application
 def main():
@@ -263,11 +248,7 @@ def main():
 
     # Extract icons from the directory
     icons = extract_icons(directory)
-
-    if icons:
-        create_window_with_icons(icons)
-    else:
-        messagebox.showinfo("Info", "No icons found in the selected directory")
+    create_window_with_icons(icons)
 
 if __name__ == "__main__":
     main()
