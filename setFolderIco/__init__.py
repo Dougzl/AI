@@ -213,14 +213,25 @@ def main():
     global root
     global directory
 
+    import sys
+
     root = tk.Tk()
     root.withdraw()  # Hide the root window
 
-    # Ask the user to select a directory
-    directory = filedialog.askdirectory(title="Select Directory")
-    if not directory:
-        messagebox.showerror("Error", "No directory selected")
-        return
+    if len(sys.argv) > 1:
+        directory = sys.argv[1]
+        if not os.path.isdir(directory):
+            print("Provided directory does not exist.")
+            directory = filedialog.askdirectory(title="Select Directory")
+            sys.exit(1)
+    else:
+        directory = filedialog.askdirectory(title="Select Directory")
+        if not directory:
+            print("No directory selected.")
+            sys.exit(1)
+
+    # Set the directory to absolute path
+    directory = os.path.abspath(directory)
 
     # Extract icons from the directory
     icons = extract_icons(directory)
