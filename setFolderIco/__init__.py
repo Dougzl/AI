@@ -7,7 +7,6 @@ from tkinter import filedialog, messagebox
 import shutil
 import subprocess
 import ctypes
-import time
 
 # Set directory as a global variable
 directory = None
@@ -202,9 +201,7 @@ def process_icon(icon):
             messagebox.showerror("Error", f"Failed to create desktop.ini: {e}")
 
 def refresh_explorer():
-    hwnd = ctypes.windll.user32.FindWindowW("Progman", None)
-    ctypes.windll.user32.SendMessageW(hwnd, 0x111, 0xF140, 0)  # 刷新消息
-    time.sleep(1)
+    ctypes.windll.shell32.SHChangeNotify(0x08000000, 0x0000, None, None)
 
 # Main application
 def main():
