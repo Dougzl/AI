@@ -200,8 +200,30 @@ def process_icon(icon):
         except Exception as e:
             messagebox.showerror("Error", f"Failed to create desktop.ini: {e}")
 
+def delete_icon_cache():
+    cache_dir = os.path.join(os.getenv('USERPROFILE'), r'AppData\Local\Microsoft\Windows\Explorer')
+    files_to_delete = [
+        'iconcache_16.db', 'iconcache_32.db', 'iconcache_48.db', 'iconcache_96.db',
+        'iconcache_256.db', 'iconcache_1024.db', 'iconcache_48.db', 'iconcache_idx.db',
+        'thumbcache_16.db', 'thumbcache_32.db', 'thumbcache_48.db', 'thumbcache_96.db',
+        'thumbcache_256.db', 'thumbcache_1024.db', 'thumbcache_idx.db'
+    ]
+
+    for filename in files_to_delete:
+        file_path = os.path.join(cache_dir, filename)
+        try:
+            os.remove(file_path)
+            print(f"Deleted {file_path}")
+        except FileNotFoundError:
+            print(f"{file_path} not found.")
+        except PermissionError as e:
+            print(f"Permission error deleting {file_path}: {e}")
+        except Exception as e:
+            print(f"Error deleting {file_path}: {e}")
+
 def refresh_explorer():
     ctypes.windll.shell32.SHChangeNotify(0x08000000, 0x0000, None, None)
+    delete_icon_cache()
 
 # Main application
 def main():
