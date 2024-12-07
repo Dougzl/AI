@@ -6,6 +6,8 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 import shutil
 import subprocess
+import re
+import time
 import ctypes
 
 # Set directory as a global variable
@@ -16,12 +18,19 @@ icon_canvases = []  # 存储所有图标的 canvas
 def run_cmd(command):
     subprocess.call(command, creationflags=0x08000000)
 
+def contains_chinese(text):
+    # 匹配任何中文字符
+    chinese_char_pattern = re.compile(r'[\u4e00-\u9fff]')
+    return bool(chinese_char_pattern.search(text))
+
 def extract_icons(directory):
     icons = []
     for root, _, files in os.walk(directory):
-        for file in files:
-            if file.lower().endswith('.exe') or file.lower().endswith('.ico'):
-                icons.append(os.path.abspath(os.path.join(root, file)))
+        relative_root = os.path.relpath(root, directory)
+        if not contains_chinese(relative_root):
+            for file in files:
+                if file.lower().endswith('.exe') or file.lower().endswith('.ico'):
+                    icons.append(os.path.abspath(os.path.join(root, file)))
     return icons
 
 def create_window_with_icons(icons):
@@ -160,11 +169,17 @@ def on_icon_double_click(icon):
     # Close the root window
     root.destroy()
 
+def convert_to_unicode_path(path):
+    return ''.join([f'\\u{ord(char):04x}' if ord(char) > 127 else char for char in path])
+
 def process_icon(icon):
     global directory
 
     # Calculate relative path
     relative_icon_path = os.path.relpath(icon, directory)
+
+    if contains_chinese(relative_icon_path):
+        relative_icon_path = convert_to_unicode_path(relative_icon_path)
 
     # Update desktop.ini file if exists
     ini_path = os.path.join(directory, 'desktop.ini')
@@ -186,7 +201,7 @@ def process_icon(icon):
 
             run_cmd(f'attrib +h +s "{ini_path}"')  # Set file attributes to hidden and system
             run_cmd(f'attrib +s "{directory}"')  # Set directory as a system folder
-            refresh_explorer()
+            refresh_explorer(directory)
         except Exception as e:
             messagebox.showerror("Error", f"Failed to update desktop.ini: {e}")
     else:
@@ -196,34 +211,30 @@ def process_icon(icon):
                 file.write(f'[.ShellClassInfo]\nIconResource={relative_icon_path},0\n')
                 run_cmd(f'attrib +h +s "{ini_path}"')
                 run_cmd(f'attrib +s "{directory}"')
-                refresh_explorer()
+                refresh_explorer(directory)
         except Exception as e:
             messagebox.showerror("Error", f"Failed to create desktop.ini: {e}")
 
-def delete_icon_cache():
-    cache_dir = os.path.join(os.getenv('USERPROFILE'), r'AppData\Local\Microsoft\Windows\Explorer')
-    files_to_delete = [
-        'iconcache_16.db', 'iconcache_32.db', 'iconcache_48.db', 'iconcache_96.db',
-        'iconcache_256.db', 'iconcache_1024.db', 'iconcache_48.db', 'iconcache_idx.db',
-        'thumbcache_16.db', 'thumbcache_32.db', 'thumbcache_48.db', 'thumbcache_96.db',
-        'thumbcache_256.db', 'thumbcache_1024.db', 'thumbcache_idx.db'
-    ]
+def refresh_explorer(folder_path):
+    try:
+        # 获取文件夹的父路径和当前名称
+        parent_dir = os.path.dirname(folder_path)
+        original_name = os.path.basename(folder_path)
 
-    for filename in files_to_delete:
-        file_path = os.path.join(cache_dir, filename)
-        try:
-            os.remove(file_path)
-            print(f"Deleted {file_path}")
-        except FileNotFoundError:
-            print(f"{file_path} not found.")
-        except PermissionError as e:
-            print(f"Permission error deleting {file_path}: {e}")
-        except Exception as e:
-            print(f"Error deleting {file_path}: {e}")
+        # 自动生成一个新的临时名称
+        new_name = original_name + "."
+        new_folder_path = os.path.join(parent_dir, new_name)
 
-def refresh_explorer():
-    ctypes.windll.shell32.SHChangeNotify(0x08000000, 0x0000, None, None)
-    delete_icon_cache()
+        # 重命名文件夹
+        os.rename(folder_path, new_folder_path) # 可根据需求调整时间
+        os.system('ie4uinit.exe -ClearIconCache')
+
+        # 停顿几秒钟模拟操作
+        time.sleep(1.3)
+        ctypes.windll.shell32.SHChangeNotify(0x08000000, 0x0000, None, None)
+
+    except Exception as e:
+        print(f"操作失败: {e}")
 
 # Main application
 def main():
